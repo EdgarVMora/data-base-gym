@@ -1,28 +1,88 @@
 import './App.css'
-import { useEffect } from 'react'
-import { supabase } from './supabase'
+import ListaMembresias from './components/ListaMembresias'
+import ListaPersonas from './components/ListaPersonas'
 
 function App() {
-  useEffect(() => {
-    async function testConnection() {
-      console.log("Intentando conectar a Supabase Local...")
-      // Hacemos una consulta inofensiva solo para probar si hay conexión
-      const { data, error } = await supabase.from('cualquier_tabla').select('*').limit(1)
-
-      if (error) {
-        console.log("Respuesta recibida (Es normal si dice 'relation does not exist' o un error de permisos, significa que la conexión FUNCIONA):", error.message)
-      } else {
-        console.log("¡Conectado! Datos:", data)
-      }
-    }
-
-    testConnection()
-  }, [])
-
   return (
-    <div className="flex h-screen items-center justify-center bg-gray-900 text-white">
-      <h1 className="text-3xl font-bold">Saiya Gym - Conectando...</h1>
-      <p className="ml-4 text-gray-400">(Abre la consola del navegador con F12)</p>
+    <div id="app-root" style={{
+      minHeight: '100vh',
+      background: '#08090f',
+      color: '#e5e7eb',
+      fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
+      padding: '0',
+      margin: '0',
+    }}>
+
+      {/* ── Header ──────────────────────────────────── */}
+      <header style={{
+        background: 'linear-gradient(180deg, #0d0f1a 0%, #08090f 100%)',
+        borderBottom: '1px solid #1e2030',
+        padding: '20px 32px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+      }}>
+        <div style={{
+          width: 40,
+          height: 40,
+          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '20px',
+        }}>
+          💪
+        </div>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#f3f4f6', letterSpacing: '-0.3px' }}>
+            Saiya Gym
+          </h1>
+          <span style={{
+            fontSize: '11px',
+            color: '#22c55e',
+            background: '#052e16',
+            padding: '1px 7px',
+            borderRadius: '10px',
+            border: '1px solid #16a34a44',
+            fontWeight: 600,
+            letterSpacing: '0.3px',
+          }}>
+            ● DB Conectada
+          </span>
+        </div>
+      </header>
+
+      {/* ── Main ────────────────────────────────────── */}
+      <main style={{
+        maxWidth: '960px',
+        margin: '0 auto',
+        padding: '32px 24px 64px',
+      }}>
+
+        {/* Separador visual */}
+        <div style={{
+          background: 'linear-gradient(90deg, #6366f111, #8b5cf622, #6366f111)',
+          border: '1px solid #6366f133',
+          borderRadius: '12px',
+          padding: '14px 20px',
+          marginBottom: '40px',
+          fontSize: '13px',
+          color: '#818cf8',
+        }}>
+          🧪 <strong>Prueba de conexión —</strong> Los datos que ves a continuación fueron leídos directamente de tu base de datos local Supabase.
+        </div>
+
+        {/* Membresías */}
+        <ListaMembresias />
+
+        {/* Divisor */}
+        <div style={{ height: '1px', background: '#1e2030', margin: '8px 0 8px' }} />
+
+        {/* Personas */}
+        <ListaPersonas />
+
+      </main>
     </div>
   )
 }
