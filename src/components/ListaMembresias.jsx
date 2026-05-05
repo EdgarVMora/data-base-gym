@@ -1,79 +1,30 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 
-/**
- * Tarjeta de membresía con diseño premium de acuerdo al tier.
- */
-const tierConfig = {
-  Classic: { emoji: '🥉', gradient: 'linear-gradient(135deg, #3b3f5c, #2e3250)', accent: '#7c83c8', badge: '#4a4f7a' },
-  Gold:    { emoji: '🥇', gradient: 'linear-gradient(135deg, #4a3000, #7a5200)', accent: '#f5b942', badge: '#7a5200' },
-  Premium: { emoji: '💎', gradient: 'linear-gradient(135deg, #1a003d, #3d0087)', accent: '#c084fc', badge: '#5b00b5' },
-}
-
 function MembresiaCard({ membresia }) {
-  const config = tierConfig[membresia.nombre] ?? tierConfig.Classic
-
   return (
     <div
       id={`membresia-${membresia.nombre.toLowerCase()}`}
-      style={{
-        background: config.gradient,
-        border: `1px solid ${config.accent}44`,
-        borderRadius: '16px',
-        padding: '28px 24px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        boxShadow: `0 8px 32px ${config.accent}22`,
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-        cursor: 'default',
-        minWidth: '220px',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-4px)'
-        e.currentTarget.style.boxShadow = `0 16px 48px ${config.accent}44`
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = `0 8px 32px ${config.accent}22`
-      }}
+      className="rounded-2xl border border-gray-200 dark:border-gray-700 p-7 flex flex-col gap-3 min-w-[220px] transition-transform duration-200 hover:-translate-y-1"
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '28px' }}>{config.emoji}</span>
-        <span style={{
-          background: config.badge,
-          color: config.accent,
-          padding: '2px 10px',
-          borderRadius: '20px',
-          fontSize: '12px',
-          fontWeight: 700,
-          letterSpacing: '0.5px',
-          textTransform: 'uppercase',
-        }}>
+      <div className="flex items-center gap-2.5">
+        <span className="text-2xl">
+          {membresia.nombre === 'Gold' ? '🥇' : membresia.nombre === 'Premium' ? '💎' : '🥉'}
+        </span>
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border border-gray-300 dark:border-gray-600">
           {membresia.nombre}
         </span>
       </div>
 
-      <p style={{ color: '#d1d5db', fontSize: '13px', lineHeight: '1.5', margin: 0 }}>
+      <p className="text-sm leading-relaxed">
         {membresia.descripcion}
       </p>
 
-      <div style={{
-        marginTop: 'auto',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-end',
-      }}>
-        <span style={{ color: '#9ca3af', fontSize: '12px' }}>
+      <div className="mt-auto flex justify-between items-end">
+        <span className="text-xs">
           {membresia.duracion_meses} mes{membresia.duracion_meses > 1 ? 'es' : ''}
         </span>
-        <span style={{
-          color: config.accent,
-          fontSize: '24px',
-          fontWeight: 700,
-          fontFamily: 'monospace',
-          letterSpacing: '-0.5px',
-        }}>
+        <span className="text-2xl font-bold font-mono tracking-tight">
           ${Number(membresia.costo).toLocaleString('es-MX')}
         </span>
       </div>
@@ -94,7 +45,6 @@ export default function ListaMembresias() {
         .order('costo', { ascending: true })
 
       if (error) {
-        // El Auditor: registrar causa raíz en consola para diagnóstico
         console.error('[Auditor] Error al leer membresías:', error.message, '| code:', error.code)
         setError(error.message)
       } else {
@@ -108,41 +58,23 @@ export default function ListaMembresias() {
   }, [])
 
   return (
-    <section id="lista-membresias" style={{ padding: '32px 0' }}>
-      <h2 style={{
-        margin: '0 0 24px',
-        fontSize: '20px',
-        color: '#f3f4f6',
-        fontWeight: 600,
-        letterSpacing: '-0.3px',
-        textAlign: 'left',
-      }}>
+    <section id="lista-membresias" className="py-8">
+      <h2 className="mb-6 text-xl font-semibold tracking-tight text-left">
         🏷️ Planes de Membresía
       </h2>
 
       {loading && (
-        <p style={{ color: '#6b7280', fontSize: '14px' }}>Cargando membresías...</p>
+        <p className="text-sm">Cargando membresías...</p>
       )}
 
       {error && (
-        <div style={{
-          background: '#2d1515',
-          border: '1px solid #7f1d1d',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          color: '#fca5a5',
-          fontSize: '13px',
-        }}>
+        <div className="rounded-lg border border-red-300 dark:border-red-700 px-4 py-3 text-sm">
           ⚠️ <strong>Error de conexión:</strong> {error}
         </div>
       )}
 
       {!loading && !error && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '20px',
-        }}>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-5">
           {membresias.map(m => (
             <MembresiaCard key={m.id_membresia} membresia={m} />
           ))}

@@ -4,72 +4,28 @@ import ListaPersonas from './components/ListaPersonas'
 
 function App() {
   return (
-    <div id="app-root" style={{
-      minHeight: '100vh',
-      background: '#08090f',
-      color: '#e5e7eb',
-      fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
-      padding: '0',
-      margin: '0',
-    }}>
+    <div id="app-root" className="min-h-screen font-sans p-0 m-0">
 
       {/* ── Header ──────────────────────────────────── */}
-      <header style={{
-        background: 'linear-gradient(180deg, #0d0f1a 0%, #08090f 100%)',
-        borderBottom: '1px solid #1e2030',
-        padding: '20px 32px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-      }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '20px',
-        }}>
+      <header className="border-b border-gray-200 dark:border-gray-700 px-8 py-5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl">
           💪
         </div>
         <div>
-          <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 700, color: '#f3f4f6', letterSpacing: '-0.3px' }}>
+          <h1 className="m-0 text-xl font-bold tracking-tight">
             Saiya Gym
           </h1>
-          <span style={{
-            fontSize: '11px',
-            color: '#22c55e',
-            background: '#052e16',
-            padding: '1px 7px',
-            borderRadius: '10px',
-            border: '1px solid #16a34a44',
-            fontWeight: 600,
-            letterSpacing: '0.3px',
-          }}>
+          <span className="text-xs font-semibold tracking-wide">
             ● DB Conectada
           </span>
         </div>
       </header>
 
       {/* ── Main ────────────────────────────────────── */}
-      <main style={{
-        maxWidth: '960px',
-        margin: '0 auto',
-        padding: '32px 24px 64px',
-      }}>
+      <main className="max-w-4xl mx-auto px-6 py-8 pb-16">
 
-        {/* Separador visual */}
-        <div style={{
-          background: 'linear-gradient(90deg, #6366f111, #8b5cf622, #6366f111)',
-          border: '1px solid #6366f133',
-          borderRadius: '12px',
-          padding: '14px 20px',
-          marginBottom: '40px',
-          fontSize: '13px',
-          color: '#818cf8',
-        }}>
+        {/* Nota informativa */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-5 py-3.5 mb-10 text-sm">
           🧪 <strong>Prueba de conexión —</strong> Los datos que ves a continuación fueron leídos directamente de tu base de datos local Supabase.
         </div>
 
@@ -77,7 +33,7 @@ function App() {
         <ListaMembresias />
 
         {/* Divisor */}
-        <div style={{ height: '1px', background: '#1e2030', margin: '8px 0 8px' }} />
+        <hr className="border-gray-200 dark:border-gray-700 my-2" />
 
         {/* Personas */}
         <ListaPersonas />
