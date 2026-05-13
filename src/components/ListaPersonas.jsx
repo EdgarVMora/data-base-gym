@@ -4,6 +4,20 @@ import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { tableHeadCellClass } from './ui/tableStyles'
 
+const FORM_INICIAL = {
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
+  id_genero: '',
+  telefono: '',
+  correo_electronico: '',
+  tipo: 'cliente',
+  id_puesto: '',
+  id_tipo_contrato: '',
+  salario_actual: '',
+  fecha_contratacion: ''
+}
+
 function PersonaRow({ persona }) {
   const genero = persona.genero?.descripcion ?? '—'
   const contacto = persona.medios_contacto?.[0]
@@ -49,32 +63,133 @@ export default function ListaPersonas() {
   const [error, setError] = useState(null)
   const [busqueda, setBusqueda] = useState('')
 
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState(FORM_INICIAL)
+  const [formLoading, setFormLoading] = useState(false)
+  const [formError, setFormError] = useState(null)
+
+  const [generos, setGeneros] = useState([])
+  const [puestos, setPuestos] = useState([])
+  const [contratos, setContratos] = useState([])
+
+  async function loadPersonas() {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('personas')
+      .select(`
+        id_persona,
+        nombre,
+        apellido_paterno,
+        apellido_materno,
+        genero ( descripcion ),
+        medios_contacto ( telefono, correo_electronico )
+      `)
+      .order('apellido_paterno', { ascending: true })
+
+    if (error) {
+      console.error('[Auditor] Error al leer personas:', error.message, '| code:', error.code)
+      setError(error.message)
+    } else {
+      setPersonas(data ?? [])
+    }
+    setLoading(false)
+  }
+
   useEffect(() => {
-    async function fetchPersonas() {
-      const { data, error } = await supabase
-        .from('personas')
-        .select(`
-          id_persona,
-          nombre,
-          apellido_paterno,
-          apellido_materno,
-          genero ( descripcion ),
-          medios_contacto ( telefono, correo_electronico )
-        `)
-        .order('apellido_paterno', { ascending: true })
+    loadPersonas()
+    supabase.from('genero').select('*').then(({ data }) => setGeneros(data ?? []))
+    supabase.from('puesto').select('*').order('nombre_puesto', { ascending: true }).then(({ data }) => setPuestos(data ?? []))
+    supabase.from('tipo_contrato').select('*').order('descripcion', { ascending: true }).then(({ data }) => setContratos(data ?? []))
+  }, [])
 
-      if (error) {
-        console.error('[Auditor] Error al leer personas:', error.message, '| code:', error.code)
-        setError(error.message)
-      } else {
-        setPersonas(data)
+  function actualizarCampo(campo, valor) {
+    setForm(f => ({ ...f, [campo]: valor }))
+  }
+
+  function cerrarFormulario() {
+    setShowForm(false)
+    setForm(FORM_INICIAL)
+    setFormError(null)
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setFormLoading(true)
+    setFormError(null)
+
+    if (form.tipo === 'empleado') {
+      if (!form.id_puesto || !form.id_tipo_contrato || !form.salario_actual || !form.fecha_contratacion) {
+        setFormError('Faltan datos del empleado (puesto, contrato, salario y fecha).')
+        setFormLoading(false)
+        return
       }
-
-      setLoading(false)
     }
 
-    fetchPersonas()
-  }, [])
+    // 1. Insertar persona
+    const { data: persona, error: errPersona } = await supabase
+      .from('personas')
+      .insert({
+        nombre: form.nombre,
+        apellido_paterno: form.apellido_paterno,
+        apellido_materno: form.apellido_materno || null,
+        id_genero: form.id_genero || null
+      })
+      .select()
+      .single()
+    if (errPersona) {
+      setFormError('Error al registrar persona: ' + errPersona.message)
+      setFormLoading(false)
+      return
+    }
+
+    // 2. Insertar cliente o empleado (id_cliente / id_empleado = id_persona)
+    if (form.tipo === 'cliente') {
+      const { error: errCliente } = await supabase
+        .from('clientes')
+        .insert({ id_cliente: persona.id_persona })
+      if (errCliente) {
+        setFormError('Error al registrar cliente: ' + errCliente.message)
+        setFormLoading(false)
+        return
+      }
+    } else {
+      const { error: errEmpleado } = await supabase
+        .from('empleados')
+        .insert({
+          id_empleado: persona.id_persona,
+          id_puesto: form.id_puesto,
+          id_tipo_contrato: form.id_tipo_contrato,
+          salario_actual: form.salario_actual,
+          fecha_contratacion: form.fecha_contratacion
+        })
+      if (errEmpleado) {
+        setFormError('Error al registrar empleado: ' + errEmpleado.message)
+        setFormLoading(false)
+        return
+      }
+    }
+
+    // 3. Medios de contacto (opcional)
+    if (form.telefono || form.correo_electronico) {
+      const { error: errContacto } = await supabase
+        .from('medios_contacto')
+        .insert({
+          id_persona: persona.id_persona,
+          telefono: form.telefono || null,
+          correo_electronico: form.correo_electronico || null
+        })
+      if (errContacto) {
+        setFormError('Persona creada, pero falló el contacto: ' + errContacto.message)
+        setFormLoading(false)
+        await loadPersonas()
+        return
+      }
+    }
+
+    cerrarFormulario()
+    await loadPersonas()
+    setFormLoading(false)
+  }
 
   const personasFiltradas = personas.filter(p => {
     const termino = busqueda.toLowerCase()
@@ -109,6 +224,155 @@ export default function ListaPersonas() {
           </span>
         </div>
       </div>
+
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow"
+          onClick={() => (showForm ? cerrarFormulario() : setShowForm(true))}
+        >
+          {showForm ? 'Cancelar' : 'Registrar nueva persona'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          className="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded shadow"
+          onSubmit={handleSubmit}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input
+              className="border p-2 rounded"
+              placeholder="Nombre(s)"
+              value={form.nombre}
+              onChange={e => actualizarCampo('nombre', e.target.value)}
+              required
+            />
+            <input
+              className="border p-2 rounded"
+              placeholder="Apellido paterno"
+              value={form.apellido_paterno}
+              onChange={e => actualizarCampo('apellido_paterno', e.target.value)}
+              required
+            />
+            <input
+              className="border p-2 rounded"
+              placeholder="Apellido materno"
+              value={form.apellido_materno}
+              onChange={e => actualizarCampo('apellido_materno', e.target.value)}
+            />
+            <select
+              className="border p-2 rounded"
+              value={form.id_genero}
+              onChange={e => actualizarCampo('id_genero', e.target.value)}
+              required
+            >
+              <option value="">Selecciona género</option>
+              {generos.map(g => (
+                <option key={g.id_genero} value={g.id_genero}>{g.descripcion}</option>
+              ))}
+            </select>
+            <input
+              className="border p-2 rounded"
+              placeholder="Teléfono"
+              type="tel"
+              value={form.telefono}
+              onChange={e => actualizarCampo('telefono', e.target.value)}
+            />
+            <input
+              className="border p-2 rounded"
+              placeholder="Correo electrónico"
+              type="email"
+              value={form.correo_electronico}
+              onChange={e => actualizarCampo('correo_electronico', e.target.value)}
+            />
+          </div>
+
+          <fieldset className="mt-4">
+            <legend className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">
+              Registrar como
+            </legend>
+            <div className="flex gap-4 text-sm text-slate-700 dark:text-slate-200">
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="tipo"
+                  value="cliente"
+                  checked={form.tipo === 'cliente'}
+                  onChange={() => actualizarCampo('tipo', 'cliente')}
+                />
+                Cliente
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="tipo"
+                  value="empleado"
+                  checked={form.tipo === 'empleado'}
+                  onChange={() => actualizarCampo('tipo', 'empleado')}
+                />
+                Empleado
+              </label>
+            </div>
+          </fieldset>
+
+          {form.tipo === 'empleado' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <select
+                className="border p-2 rounded"
+                value={form.id_puesto}
+                onChange={e => actualizarCampo('id_puesto', e.target.value)}
+                required
+              >
+                <option value="">Selecciona puesto</option>
+                {puestos.map(p => (
+                  <option key={p.id_puesto} value={p.id_puesto}>{p.nombre_puesto}</option>
+                ))}
+              </select>
+              <select
+                className="border p-2 rounded"
+                value={form.id_tipo_contrato}
+                onChange={e => actualizarCampo('id_tipo_contrato', e.target.value)}
+                required
+              >
+                <option value="">Selecciona tipo de contrato</option>
+                {contratos.map(c => (
+                  <option key={c.id_tipo_contrato} value={c.id_tipo_contrato}>{c.descripcion}</option>
+                ))}
+              </select>
+              <input
+                className="border p-2 rounded"
+                placeholder="Salario actual"
+                type="number"
+                min="0"
+                value={form.salario_actual}
+                onChange={e => actualizarCampo('salario_actual', e.target.value)}
+                required
+              />
+              <input
+                className="border p-2 rounded"
+                placeholder="Fecha de contratación"
+                type="date"
+                value={form.fecha_contratacion}
+                onChange={e => actualizarCampo('fecha_contratacion', e.target.value)}
+                required
+              />
+            </div>
+          )}
+
+          {formError && <div className="text-red-600 mt-3 text-sm">{formError}</div>}
+
+          <div className="mt-4 flex justify-end">
+            <button
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow disabled:opacity-60"
+              type="submit"
+              disabled={formLoading}
+            >
+              {formLoading ? 'Registrando...' : 'Registrar'}
+            </button>
+          </div>
+        </form>
+      )}
 
       <label htmlFor="busqueda-personas" className="sr-only">
         Buscar por nombre o correo
