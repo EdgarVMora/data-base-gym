@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react'
+import { Medal, Award, Gem } from 'lucide-react'
 import { supabase } from '../supabase'
 import { formatMoney } from '../utils/format'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage } from './ui/QueryState'
+
+const ICONO_POR_PLAN = {
+  classic: Medal,
+  gold: Award,
+  premium: Gem
+}
 
 function tierAccent(nombre) {
   const n = nombre?.toLowerCase() ?? ''
@@ -11,12 +18,21 @@ function tierAccent(nombre) {
   return 'from-slate-400/80 to-slate-600/70'
 }
 
+function iconColor(nombre) {
+  const n = nombre?.toLowerCase() ?? ''
+  if (n.includes('gold')) return 'text-amber-500'
+  if (n.includes('premium')) return 'text-violet-500'
+  return 'text-slate-500'
+}
+
 function MembresiaCard({ membresia }) {
+  const key = membresia.nombre?.toLowerCase() ?? ''
   const accent = tierAccent(membresia.nombre)
+  const Icono = ICONO_POR_PLAN[key] ?? Medal
 
   return (
     <div
-      id={`membresia-${membresia.nombre.toLowerCase()}`}
+      id={`membresia-${key}`}
       className="group relative rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white/90 dark:bg-slate-900/70 backdrop-blur-sm p-6 flex flex-col gap-3 min-w-[220px] shadow-sm hover:shadow-md hover:border-amber-200/80 dark:hover:border-amber-900/40 transition-all duration-200 hover:-translate-y-0.5"
     >
       <div
@@ -24,13 +40,7 @@ function MembresiaCard({ membresia }) {
         aria-hidden
       />
       <div className="flex items-center gap-2.5 pt-1">
-        <span className="text-2xl leading-none" aria-hidden>
-          {membresia.nombre === 'Gold'
-            ? '🥇'
-            : membresia.nombre === 'Premium'
-              ? '💎'
-              : '🥉'}
-        </span>
+        <Icono className={`w-6 h-6 ${iconColor(membresia.nombre)}`} aria-hidden />
         <span className="px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700">
           {membresia.nombre}
         </span>
@@ -90,7 +100,7 @@ export default function ListaMembresias() {
       {error ? <ErrorNotice message={error} /> : null}
 
       {!loading && !error ? (
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-5">
           {membresias.map(m => (
             <MembresiaCard key={m.id_membresia} membresia={m} />
           ))}
