@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
+import SectionIntro from './ui/SectionIntro'
+import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
+import { tableHeadCellClass } from './ui/tableStyles'
 
 function PersonaRow({ persona }) {
   const genero = persona.genero?.descripcion ?? '—'
@@ -9,33 +12,32 @@ function PersonaRow({ persona }) {
   return (
     <tr
       id={`persona-row-${persona.id_persona}`}
-      className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+      className="border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-amber-50/40 dark:hover:bg-slate-800/40 transition-colors"
     >
-      {/* Nombre completo */}
       <td className="px-4 py-3.5 text-left">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 border border-gray-300 dark:border-gray-600">
-            {persona.nombre[0]}{persona.apellido_paterno[0]}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 bg-linear-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-600">
+            {persona.nombre[0]}
+            {persona.apellido_paterno[0]}
           </div>
-          <div>
-            <div className="font-semibold text-sm">
-              {persona.nombre} {persona.apellido_paterno} {persona.apellido_materno ?? ''}
+          <div className="min-w-0">
+            <div className="font-semibold text-sm text-slate-900 dark:text-slate-100 truncate">
+              {persona.nombre} {persona.apellido_paterno}{' '}
+              {persona.apellido_materno ?? ''}
             </div>
-            <div className="text-xs opacity-60">
+            <div className="text-xs text-slate-500 dark:text-slate-400 truncate">
               {contacto?.correo_electronico ?? '—'}
             </div>
           </div>
         </div>
       </td>
 
-      {/* Teléfono */}
-      <td className="px-4 py-3.5 text-left text-sm opacity-70">
+      <td className="px-4 py-3.5 text-left text-sm text-slate-600 dark:text-slate-300 tabular-nums">
         {contacto?.telefono ?? '—'}
       </td>
 
-      {/* Género */}
-      <td className="px-4 py-3.5 text-center text-base">
-        {generoIcon[genero] ?? '?'}
+      <td className="px-4 py-3.5 text-center text-base text-slate-700 dark:text-slate-200">
+        <span title={genero}>{generoIcon[genero] ?? '?'}</span>
       </td>
     </tr>
   )
@@ -82,68 +84,62 @@ export default function ListaPersonas() {
   })
 
   const totalMasc = personas.filter(p => p.genero?.descripcion === 'Masculino').length
-  const totalFem  = personas.filter(p => p.genero?.descripcion === 'Femenino').length
+  const totalFem = personas.filter(p => p.genero?.descripcion === 'Femenino').length
 
   return (
-    <section id="lista-personas" className="py-8">
-      {/* Encabezado */}
-      <div className="flex justify-between items-center flex-wrap gap-3 mb-5">
-        <h2 className="m-0 text-xl font-semibold tracking-tight text-left">
-          👥 Directorio de Personas
-        </h2>
+    <section id="lista-personas" className="scroll-mt-8 py-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-5">
+        <div className="flex-1 min-w-0">
+          <SectionIntro
+            title="Directorio de personas"
+            subtitle="Identidad base compartida por clientes y empleados (misma persona puede no ser ambos a la vez en el modelo)."
+            table="personas → genero, medios_contacto"
+          />
+        </div>
 
-        {/* Badges resumen */}
-        <div className="flex gap-2 flex-wrap">
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-gray-300 dark:border-gray-600">
-            {personas.length} Total
+        <div className="flex flex-wrap gap-2 sm:pt-1 shrink-0">
+          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700">
+            {personas.length} total
           </span>
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-gray-300 dark:border-gray-600">
+          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700">
             {totalMasc} ♂
           </span>
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold border border-gray-300 dark:border-gray-600">
+          <span className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700">
             {totalFem} ♀
           </span>
         </div>
       </div>
 
-      {/* Buscador */}
+      <label htmlFor="busqueda-personas" className="sr-only">
+        Buscar por nombre o correo
+      </label>
       <input
         id="busqueda-personas"
-        type="text"
-        placeholder="Buscar por nombre o correo..."
+        type="search"
+        placeholder="Buscar por nombre o correo…"
         value={busqueda}
         onChange={e => setBusqueda(e.target.value)}
-        className="w-full box-border px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 bg-transparent text-sm mb-4 outline-none focus:border-gray-500 dark:focus:border-gray-400 transition-colors"
+        className="w-full box-border px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/50 text-sm mb-4 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/60 dark:focus:border-amber-500/50 transition-shadow"
       />
 
-      {loading && <p className="text-sm">Cargando personas...</p>}
+      {loading ? <LoadingMessage>Cargando personas…</LoadingMessage> : null}
 
-      {error && (
-        <div className="rounded-lg border border-red-300 dark:border-red-700 px-4 py-3 text-sm">
-          ⚠️ <strong>Error de conexión:</strong> {error}
-        </div>
-      )}
+      {error ? <ErrorNotice message={error} /> : null}
 
-      {!loading && !error && (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      {!loading && !error ? (
+        <TableWrap>
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="bg-gray-50 dark:bg-gray-800/50">
-                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide text-left">
-                  Nombre / Contacto
-                </th>
-                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide text-left">
-                  Teléfono
-                </th>
-                <th className="px-4 py-3 font-semibold text-xs uppercase tracking-wide text-center">
-                  Género
-                </th>
+              <tr className="bg-slate-50/95 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                <th className={tableHeadCellClass()}>Nombre / contacto</th>
+                <th className={tableHeadCellClass()}>Teléfono</th>
+                <th className={`${tableHeadCellClass()} text-center w-24`}>Género</th>
               </tr>
             </thead>
             <tbody>
               {personasFiltradas.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="p-6 text-center text-sm opacity-50">
+                  <td colSpan={3} className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">
                     No se encontraron personas con ese criterio.
                   </td>
                 </tr>
@@ -152,8 +148,8 @@ export default function ListaPersonas() {
               )}
             </tbody>
           </table>
-        </div>
-      )}
+        </TableWrap>
+      ) : null}
     </section>
   )
 }
