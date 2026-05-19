@@ -15,10 +15,6 @@ export default function ListaAreas() {
   })
   const [editId, setEditId] = useState(null)
 
-  useEffect(() => {
-    fetchAreas()
-  }, [])
-
   async function fetchAreas() {
     setLoading(true)
     setError(null)
@@ -27,6 +23,10 @@ export default function ListaAreas() {
     setRows(data || [])
     setLoading(false)
   }
+
+  useEffect(() => {
+    fetchAreas()
+  }, [])
 
   function handleInput(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))

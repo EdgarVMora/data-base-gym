@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { formatDateTime } from '../utils/format'
+import { collectFormErrors, isProperCaseWords, nowLocalDateTimeInputMax } from '../utils/validation'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
@@ -10,24 +11,30 @@ export default function ListaIncidencias() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [formError, setFormError] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     id_tipo_incidencia: '',
     id_equipo: '',
     id_area: '',
     id_persona_afectada: '',
+    nombre_afectado: '',
+    apellido_paterno_afectado: '',
+    apellido_materno_afectado: '',
     descripcion: '',
     fecha: ''
   })
+  const [nameCaseError, setNameCaseError] = useState({
+    nombre_afectado: false,
+    apellido_paterno_afectado: false,
+    apellido_materno_afectado: false,
+  });
+  const [nameCaseErrorMsg, setNameCaseErrorMsg] = useState("");
   const [editId, setEditId] = useState(null)
   const [tipos, setTipos] = useState([])
   const [equipos, setEquipos] = useState([])
   const [areas, setAreas] = useState([])
   const [personas, setPersonas] = useState([])
-
-  useEffect(() => {
-    fetchAll()
-  }, [])
 
   async function fetchAll() {
     setLoading(true)
@@ -48,8 +55,28 @@ export default function ListaIncidencias() {
     setLoading(false)
   }
 
+  useEffect(() => {
+    fetchAll()
+  }, [])
+
+  // Valida que el texto tenga solo la primera letra en mayúscula y el resto en minúscula
+  const isProperCase = (str) => {
+    if (!str) return true;
+    return str.split(" ").every(
+      (word) =>
+        word.length > 0 &&
+        word[0] === word[0].toUpperCase() &&
+        word.slice(1) === word.slice(1).toLowerCase()
+    );
+  };
+
   function handleInput(e) {
-    setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+    if (["nombre_afectado", "apellido_paterno_afectado", "apellido_materno_afectado"].includes(name)) {
+      const valid = isProperCase(value);
+      setNameCaseError(prev => ({ ...prev, [name]: !valid }));
+    }
   }
 
   function handleAdd() {
@@ -82,21 +109,44 @@ export default function ListaIncidencias() {
   }
 
   async function handleSubmit(e) {
-    e.preventDefault()
-    setError(null)
-    if (!form.descripcion || !form.id_tipo_incidencia || !form.fecha) {
-      setError('Faltan campos obligatorios')
+    e.preventDefault();
+    setFormError(null);
+
+    // Validación de mayúsculas/minúsculas en nombre y apellidos de persona afectada
+    const nombreOk = isProperCaseWords(form.nombre_afectado);
+    const paternoOk = isProperCaseWords(form.apellido_paterno_afectado);
+    const maternoOk = isProperCaseWords(form.apellido_materno_afectado);
+    setNameCaseError({
+      nombre_afectado: !nombreOk,
+      apellido_paterno_afectado: !paternoOk,
+      apellido_materno_afectado: !maternoOk,
+    });
+    const errors = collectFormErrors([
+      !form.id_tipo_incidencia ? 'Selecciona el tipo de incidencia.' : null,
+      !form.fecha ? 'Selecciona la fecha y hora.' : null,
+      form.fecha && form.fecha > nowLocalDateTimeInputMax() ? 'La fecha y hora no pueden ser futuras.' : null,
+      !form.descripcion ? 'Captura la descripción.' : null,
+      (!nombreOk || !paternoOk || !maternoOk)
+        ? 'Nombre y/o apellidos mal escritos: usa solo la primera letra en mayúscula y el resto en minúscula (por palabra).'
+        : null,
+    ])
+
+    if (errors.length) {
+      setNameCaseErrorMsg('Revisa los campos marcados y la lista de errores.')
+      setFormError(errors)
       return
     }
+
+    setNameCaseErrorMsg("");
     if (editId) {
-      const { error } = await supabase.from('incidencias').update(form).eq('id_incidencia', editId)
-      if (error) setError('Error al actualizar incidencia')
+      const { error } = await supabase.from('incidencias').update(form).eq('id_incidencia', editId);
+      if (error) setFormError(['Error al actualizar incidencia']);
     } else {
-      const { error } = await supabase.from('incidencias').insert([form])
-      if (error) setError('Error al agregar incidencia')
+      const { error } = await supabase.from('incidencias').insert([form]);
+      if (error) setFormError(['Error al agregar incidencia']);
     }
-    setShowForm(false)
-    fetchAll()
+    setShowForm(false);
+    fetchAll();
   }
 
   return (
@@ -115,6 +165,11 @@ export default function ListaIncidencias() {
 
       {showForm && (
         <form className="mb-6 space-y-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl shadow" onSubmit={handleSubmit}>
+          {nameCaseErrorMsg && (
+            <div className="text-red-600 font-semibold text-sm mb-2">
+              {nameCaseErrorMsg}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium mb-1">Tipo incidencia</label>
             <select name="id_tipo_incidencia" value={form.id_tipo_incidencia} onChange={handleInput} className="w-full rounded border px-3 py-2" required>
@@ -143,17 +198,49 @@ export default function ListaIncidencias() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Persona afectada</label>
+            <label className="block text-sm font-medium mb-1">Persona afectada (si aplica)</label>
             <select name="id_persona_afectada" value={form.id_persona_afectada} onChange={handleInput} className="w-full rounded border px-3 py-2">
               <option value="">Sin persona</option>
               {personas.map(p => (
                 <option key={p.id_persona} value={p.id_persona}>{p.nombre} {p.apellido_paterno}</option>
               ))}
             </select>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+              <input
+                className={`border p-2 rounded ${nameCaseError.nombre_afectado ? "border-red-500" : ""}`}
+                placeholder="Nombre(s) de la persona"
+                name="nombre_afectado"
+                value={form.nombre_afectado}
+                onChange={handleInput}
+              />
+              {nameCaseError.nombre_afectado && (
+                <span className="text-xs text-red-500">Nombre mal escrito</span>
+              )}
+              <input
+                className={`border p-2 rounded ${nameCaseError.apellido_paterno_afectado ? "border-red-500" : ""}`}
+                placeholder="Apellido paterno"
+                name="apellido_paterno_afectado"
+                value={form.apellido_paterno_afectado}
+                onChange={handleInput}
+              />
+              {nameCaseError.apellido_paterno_afectado && (
+                <span className="text-xs text-red-500">Apellido paterno mal escrito</span>
+              )}
+              <input
+                className={`border p-2 rounded ${nameCaseError.apellido_materno_afectado ? "border-red-500" : ""}`}
+                placeholder="Apellido materno"
+                name="apellido_materno_afectado"
+                value={form.apellido_materno_afectado}
+                onChange={handleInput}
+              />
+              {nameCaseError.apellido_materno_afectado && (
+                <span className="text-xs text-red-500">Apellido materno mal escrito</span>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Fecha y hora</label>
-            <input type="datetime-local" name="fecha" value={form.fecha} onChange={handleInput} className="w-full rounded border px-3 py-2" required />
+            <input type="datetime-local" name="fecha" value={form.fecha} onChange={handleInput} className="w-full rounded border px-3 py-2" required max={nowLocalDateTimeInputMax()} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Descripción</label>
@@ -167,7 +254,20 @@ export default function ListaIncidencias() {
               Cancelar
             </button>
           </div>
-          {error && <ErrorNotice message={error} />}
+          {formError ? (
+            Array.isArray(formError) ? (
+              <div className="text-red-600 mt-2 text-sm">
+                <div className="font-semibold mb-1">Corrige lo siguiente:</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {formError.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-red-600 mt-2 text-sm">{formError}</div>
+            )
+          ) : null}
         </form>
       )}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { formatDate } from '../utils/format'
+import { collectFormErrors, isProperCaseWords } from '../utils/validation'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
@@ -18,6 +19,12 @@ export default function ListaClientes() {
     telefono: '',
     correo_electronico: ''
   })
+  const [nameCaseError, setNameCaseError] = useState({
+    nombre: false,
+    apellido_paterno: false,
+    apellido_materno: false,
+  });
+  const [nameCaseErrorMsg, setNameCaseErrorMsg] = useState("");
   const [generos, setGeneros] = useState([])
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState(null)
@@ -52,10 +59,56 @@ export default function ListaClientes() {
     supabase.from('genero').select('*').then(({ data }) => setGeneros(data ?? []))
   }, [])
 
+  // Valida que el texto tenga solo la primera letra en mayúscula y el resto en minúscula
+  const isProperCase = (str) => {
+    if (!str) return true;
+    return str.split(" ").every(
+      (word) =>
+        word.length > 0 &&
+        word[0] === word[0].toUpperCase() &&
+        word.slice(1) === word.slice(1).toLowerCase()
+    );
+  };
+
+  function handleInput(e) {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+    if (["nombre", "apellido_paterno", "apellido_materno"].includes(name)) {
+      const valid = isProperCase(value);
+      setNameCaseError(prev => ({ ...prev, [name]: !valid }));
+    }
+  }
+
   async function handleSubmit(e) {
-    e.preventDefault()
-    setFormLoading(true)
-    setFormError(null)
+    e.preventDefault();
+    setFormLoading(true);
+    setFormError(null);
+
+    // Validación de mayúsculas/minúsculas en nombre y apellidos
+    const nombreOk = isProperCaseWords(form.nombre);
+    const paternoOk = isProperCaseWords(form.apellido_paterno);
+    const maternoOk = isProperCaseWords(form.apellido_materno);
+    setNameCaseError({
+      nombre: !nombreOk,
+      apellido_paterno: !paternoOk,
+      apellido_materno: !maternoOk,
+    });
+    const errors = collectFormErrors([
+      !form.nombre ? 'Captura el nombre.' : null,
+      !form.apellido_paterno ? 'Captura el apellido paterno.' : null,
+      !form.id_genero ? 'Selecciona el género.' : null,
+      (!nombreOk || !paternoOk || !maternoOk)
+        ? 'Nombre y/o apellidos mal escritos: usa solo la primera letra en mayúscula y el resto en minúscula (por palabra).'
+        : null,
+    ])
+    if (errors.length) {
+      setNameCaseErrorMsg('Revisa los campos marcados y la lista de errores.')
+      setFormError(errors)
+      setFormLoading(false)
+      return
+    }
+    setNameCaseErrorMsg("");
+
     // 1. Insertar persona
     const { data: persona, error: errPersona } = await supabase
       .from('personas')
@@ -73,7 +126,7 @@ export default function ListaClientes() {
       return
     }
     // 2. Insertar cliente (id_cliente = id_persona)
-    const { data: cliente, error: errCliente } = await supabase
+    const { error: errCliente } = await supabase
       .from('clientes')
       .insert({ id_cliente: persona.id_persona })
       .select()
@@ -123,27 +176,44 @@ export default function ListaClientes() {
 
       {showForm && (
         <form className="mb-6 bg-slate-50 dark:bg-slate-800 p-4 rounded shadow" onSubmit={handleSubmit}>
+          {nameCaseErrorMsg && (
+            <div className="text-red-600 font-semibold text-sm mb-2">
+              {nameCaseErrorMsg}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
-              className="border p-2 rounded"
+              className={`border p-2 rounded ${nameCaseError.nombre ? "border-red-500" : ""}`}
               placeholder="Nombre(s)"
+              name="nombre"
               value={form.nombre}
-              onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+              onChange={handleInput}
               required
             />
+            {nameCaseError.nombre && (
+              <span className="text-xs text-red-500">Nombre mal escrito</span>
+            )}
             <input
-              className="border p-2 rounded"
+              className={`border p-2 rounded ${nameCaseError.apellido_paterno ? "border-red-500" : ""}`}
               placeholder="Apellido paterno"
+              name="apellido_paterno"
               value={form.apellido_paterno}
-              onChange={e => setForm(f => ({ ...f, apellido_paterno: e.target.value }))}
+              onChange={handleInput}
               required
             />
+            {nameCaseError.apellido_paterno && (
+              <span className="text-xs text-red-500">Apellido paterno mal escrito</span>
+            )}
             <input
-              className="border p-2 rounded"
+              className={`border p-2 rounded ${nameCaseError.apellido_materno ? "border-red-500" : ""}`}
               placeholder="Apellido materno"
+              name="apellido_materno"
               value={form.apellido_materno}
-              onChange={e => setForm(f => ({ ...f, apellido_materno: e.target.value }))}
+              onChange={handleInput}
             />
+            {nameCaseError.apellido_materno && (
+              <span className="text-xs text-red-500">Apellido materno mal escrito</span>
+            )}
             <select
               className="border p-2 rounded"
               value={form.id_genero}
@@ -170,7 +240,20 @@ export default function ListaClientes() {
               type="email"
             />
           </div>
-          {formError && <div className="text-red-600 mt-2">{formError}</div>}
+          {formError ? (
+            Array.isArray(formError) ? (
+              <div className="text-red-600 mt-2 text-sm">
+                <div className="font-semibold mb-1">Corrige lo siguiente:</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {formError.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-red-600 mt-2 text-sm">{formError}</div>
+            )
+          ) : null}
           <div className="mt-4 flex justify-end">
             <button
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow disabled:opacity-60"

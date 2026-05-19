@@ -37,6 +37,13 @@ export default function ListaClienteMembresia() {
     load()
   }, [])
 
+  // ...existing code...
+  // En el formulario de alta/edición (agrega max={hoyISO()} en los inputs de fecha y valida en el submit)
+  // Si tienes un formulario, agrega la validación así:
+  // if (form.fecha_inicio > hoyISO() || form.fecha_fin > hoyISO()) {
+  //   setError('Las fechas no pueden ser futuras')
+  //   return
+  // }
   return (
     <section className="scroll-mt-8">
       <SectionIntro

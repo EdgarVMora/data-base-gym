@@ -20,3 +20,20 @@ export function TableWrap({ children }) {
     </div>
   )
 }
+
+export function FormFieldErrors({ error, className = 'text-red-600 mt-2 text-sm' }) {
+  if (!error) return null
+  if (Array.isArray(error)) {
+    return (
+      <div className={className}>
+        <div className="font-semibold mb-1">Corrige lo siguiente:</div>
+        <ul className="list-disc pl-5 space-y-1">
+          {error.map((msg, idx) => (
+            <li key={idx}>{msg}</li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+  return <div className={className}>{error}</div>
+}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { formatDateTime, formatMoney } from '../utils/format'
+import { collectFormErrors, nowLocalDateTimeInputMax } from '../utils/validation'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
@@ -14,15 +15,16 @@ export default function ListaPagos() {
     id_cliente: '',
     fecha_pago: '',
     metodo_pago: '',
-    detalles: []
+    detalles: [],
+    // Eliminados campos de nombre y apellidos del cliente, solo se usa id_cliente
   })
+  // Eliminados estados de validación de nombre/apellidos de cliente
   const [clientes, setClientes] = useState([])
   const [membresias, setMembresias] = useState([])
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError] = useState(null)
   const [detalleDraft, setDetalleDraft] = useState({ id_membresia: '', cantidad: 1, precio_unitario: '', sub_total: '' })
   const [editId, setEditId] = useState(null)
-  const [deleteId, setDeleteId] = useState(null)
 
   // Cargar pagos, clientes y membresías
   async function loadPagos() {
@@ -120,15 +122,44 @@ export default function ListaPagos() {
     }))
   }
 
+  // Convierte string 'YYYY-MM-DDTHH:mm' local a ISO UTC
+  function localToUTC(dateTimeLocal) {
+    if (!dateTimeLocal) return ''
+    const [date, time] = dateTimeLocal.split('T')
+    const [year, month, day] = date.split('-')
+    const [hour, minute] = time.split(':')
+    const dt = new Date(Date.UTC(year, month - 1, day, hour, minute))
+    return dt.toISOString()
+  }
+
+  // Convierte ISO UTC a string 'YYYY-MM-DDTHH:mm' local para el input
+  function utcToLocalInput(isoString) {
+    if (!isoString) return ''
+    const d = new Date(isoString)
+    const pad = n => n.toString().padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
   async function handleSubmit(e) {
-    e.preventDefault()
-    setFormLoading(true)
-    setFormError(null)
-    if (!form.id_cliente || !form.fecha_pago || !form.metodo_pago || form.detalles.length === 0) {
-      setFormError('Completa todos los campos y al menos un concepto')
+    e.preventDefault();
+    setFormLoading(true);
+    setFormError(null);
+
+    const errors = collectFormErrors([
+      !form.id_cliente ? 'Selecciona un cliente.' : null,
+      !form.fecha_pago ? 'Selecciona fecha y hora del pago.' : null,
+      !form.metodo_pago ? 'Captura el método de pago.' : null,
+      form.detalles.length === 0 ? 'Agrega al menos un concepto en el detalle.' : null,
+      form.fecha_pago && form.fecha_pago > nowLocalDateTimeInputMax()
+        ? 'La fecha y hora de pago no pueden ser futuras.'
+        : null,
+    ])
+    if (errors.length) {
+      setFormError(errors)
       setFormLoading(false)
       return
     }
+    const fechaPagoUTC = localToUTC(form.fecha_pago);
     if (editId) {
       // Editar pago
       const { error: errPago } = await supabase
@@ -136,17 +167,17 @@ export default function ListaPagos() {
         .update({
           id_cliente: form.id_cliente,
           monto_total,
-          fecha_pago: form.fecha_pago,
+          fecha_pago: fechaPagoUTC,
           metodo_pago: form.metodo_pago
         })
-        .eq('id_pago', editId)
+        .eq('id_pago', editId);
       if (errPago) {
-        setFormError('Error al actualizar pago: ' + errPago.message)
-        setFormLoading(false)
-        return
+        setFormError('Error al actualizar pago: ' + errPago.message);
+        setFormLoading(false);
+        return;
       }
       // Eliminar detalles previos y volver a insertar
-      await supabase.from('detalle_pago').delete().eq('id_pago', editId)
+      await supabase.from('detalle_pago').delete().eq('id_pago', editId);
       for (const d of form.detalles) {
         const { error: errDet } = await supabase
           .from('detalle_pago')
@@ -156,11 +187,11 @@ export default function ListaPagos() {
             cantidad: d.cantidad,
             precio_unitario: d.precio_unitario,
             sub_total: d.sub_total
-          })
+          });
         if (errDet) {
-          setFormError('Error al actualizar detalle: ' + errDet.message)
-          setFormLoading(false)
-          return
+          setFormError('Error al actualizar detalle: ' + errDet.message);
+          setFormLoading(false);
+          return;
         }
       }
     } else {
@@ -170,15 +201,15 @@ export default function ListaPagos() {
         .insert({
           id_cliente: form.id_cliente,
           monto_total,
-          fecha_pago: form.fecha_pago,
+          fecha_pago: fechaPagoUTC,
           metodo_pago: form.metodo_pago
         })
         .select()
-        .single()
+        .single();
       if (errPago) {
-        setFormError('Error al registrar pago: ' + errPago.message)
-        setFormLoading(false)
-        return
+        setFormError('Error al registrar pago: ' + errPago.message);
+        setFormLoading(false);
+        return;
       }
       // 2. Insertar detalle_pago
       for (const d of form.detalles) {
@@ -190,19 +221,19 @@ export default function ListaPagos() {
             cantidad: d.cantidad,
             precio_unitario: d.precio_unitario,
             sub_total: d.sub_total
-          })
+          });
         if (errDet) {
-          setFormError('Error al registrar detalle: ' + errDet.message)
-          setFormLoading(false)
-          return
+          setFormError('Error al registrar detalle: ' + errDet.message);
+          setFormLoading(false);
+          return;
         }
       }
     }
-    setShowForm(false)
-    setForm({ id_cliente: '', fecha_pago: '', metodo_pago: '', detalles: [] })
-    setEditId(null)
-    await loadPagos()
-    setFormLoading(false)
+    setShowForm(false);
+    setForm({ id_cliente: '', fecha_pago: '', metodo_pago: '', detalles: [] });
+    setEditId(null);
+    await loadPagos();
+    setFormLoading(false);
   }
 
   async function handleEdit(row) {
@@ -210,7 +241,7 @@ export default function ListaPagos() {
     setShowForm(true)
     setForm({
       id_cliente: row.clientes?.id_cliente || '',
-      fecha_pago: row.fecha_pago?.slice(0, 10) || '',
+      fecha_pago: utcToLocalInput(row.fecha_pago) || '',
       metodo_pago: row.metodo_pago || '',
       detalles: (row.detalle_pago || []).map(d => ({
         id_membresia: d.membresias?.id_membresia || '',
@@ -232,14 +263,18 @@ export default function ListaPagos() {
     <section className="scroll-mt-8">
       <SectionIntro
         title="Pagos"
-        subtitle="Cabecera de cobros con desglose opcional en líneas de detalle."
-        table="pagos → clientes → personas, detalle_pago"
+        subtitle="Registro de pagos de clientes con desglose por membresías y conceptos."
+        table="pagos → clientes, detalle_pago, membresias"
       />
 
       <div className="mb-4 flex justify-end">
         <button
           className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow"
-          onClick={() => setShowForm(f => !f)}
+          onClick={() => {
+            setShowForm(f => !f)
+            setEditId(null)
+            setForm({ id_cliente: '', fecha_pago: '', metodo_pago: '', detalles: [] })
+          }}
         >
           {showForm ? 'Cancelar' : 'Registrar nuevo pago'}
         </button>
@@ -263,10 +298,11 @@ export default function ListaPagos() {
             </select>
             <input
               className="border p-2 rounded"
-              type="date"
+              type="datetime-local"
               value={form.fecha_pago}
               onChange={e => setForm(f => ({ ...f, fecha_pago: e.target.value }))}
               required
+              max={nowLocalDateTimeInputMax()}
             />
             <input
               className="border p-2 rounded"
@@ -353,7 +389,20 @@ export default function ListaPagos() {
               Total: {formatMoney(monto_total)}
             </div>
           </div>
-          {formError && <div className="text-red-600 mt-2">{formError}</div>}
+          {formError ? (
+            Array.isArray(formError) ? (
+              <div className="text-red-600 mt-2 text-sm">
+                <div className="font-semibold mb-1">Corrige lo siguiente:</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {formError.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-red-600 mt-2 text-sm">{formError}</div>
+            )
+          ) : null}
           <div className="mt-4 flex justify-end">
             <button
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded shadow disabled:opacity-60"

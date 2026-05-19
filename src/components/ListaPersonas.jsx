@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { tableHeadCellClass } from './ui/tableStyles'
+import { collectFormErrors, isProperCaseWords, nowLocalDateInputMax } from '../utils/validation'
 
 const FORM_INICIAL = {
   nombre: '',
@@ -117,12 +118,30 @@ export default function ListaPersonas() {
     setFormLoading(true)
     setFormError(null)
 
-    if (form.tipo === 'empleado') {
-      if (!form.id_puesto || !form.id_tipo_contrato || !form.salario_actual || !form.fecha_contratacion) {
-        setFormError('Faltan datos del empleado (puesto, contrato, salario y fecha).')
-        setFormLoading(false)
-        return
-      }
+    const nombreOk = isProperCaseWords(form.nombre)
+    const paternoOk = isProperCaseWords(form.apellido_paterno)
+    const maternoOk = isProperCaseWords(form.apellido_materno)
+
+    const errors = collectFormErrors([
+      !form.nombre ? 'Captura el nombre.' : null,
+      !form.apellido_paterno ? 'Captura el apellido paterno.' : null,
+      (!nombreOk || !paternoOk || !maternoOk)
+        ? 'Nombre y/o apellidos mal escritos: usa solo la primera letra en mayúscula y el resto en minúscula (por palabra).'
+        : null,
+      !form.tipo ? 'Selecciona el tipo (cliente / empleado).' : null,
+      form.tipo === 'empleado' && !form.id_puesto ? 'Selecciona el puesto.' : null,
+      form.tipo === 'empleado' && !form.id_tipo_contrato ? 'Selecciona el tipo de contrato.' : null,
+      form.tipo === 'empleado' && !form.salario_actual ? 'Captura el salario actual.' : null,
+      form.tipo === 'empleado' && !form.fecha_contratacion ? 'Selecciona la fecha de contratación.' : null,
+      form.tipo === 'empleado' && form.fecha_contratacion && form.fecha_contratacion > nowLocalDateInputMax()
+        ? 'La fecha de contratación no puede ser futura.'
+        : null,
+    ])
+
+    if (errors.length) {
+      setFormError(errors)
+      setFormLoading(false)
+      return
     }
 
     // 1. Insertar persona
@@ -356,11 +375,25 @@ export default function ListaPersonas() {
                 value={form.fecha_contratacion}
                 onChange={e => actualizarCampo('fecha_contratacion', e.target.value)}
                 required
+                max={nowLocalDateInputMax()}
               />
             </div>
           )}
 
-          {formError && <div className="text-red-600 mt-3 text-sm">{formError}</div>}
+          {formError ? (
+            Array.isArray(formError) ? (
+              <div className="text-red-600 mt-3 text-sm">
+                <div className="font-semibold mb-1">Corrige lo siguiente:</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  {formError.map((msg, idx) => (
+                    <li key={idx}>{msg}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="text-red-600 mt-3 text-sm">{formError}</div>
+            )
+          ) : null}
 
           <div className="mt-4 flex justify-end">
             <button

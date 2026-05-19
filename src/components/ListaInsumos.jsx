@@ -15,7 +15,6 @@ export default function ListaInsumos() {
   const [formError, setFormError] = useState(null)
   const [proveedores, setProveedores] = useState([])
   const [editId, setEditId] = useState(null)
-  const [deleteId, setDeleteId] = useState(null)
 
   async function loadInsumos() {
     setLoading(true)

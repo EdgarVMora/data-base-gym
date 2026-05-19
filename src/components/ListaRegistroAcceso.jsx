@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { formatDate, formatTime } from '../utils/format'
+import { nowLocalDateInputMax } from '../utils/validation'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
 
 function fechaHoy() {
-  return new Date().toISOString().slice(0, 10)
+  return nowLocalDateInputMax()
 }
 
 function horaActual() {

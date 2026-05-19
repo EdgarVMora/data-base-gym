@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
+import { nowLocalDateInputMax } from '../utils/validation'
 
 export default function ListaEquipos() {
   const [rows, setRows] = useState([])
@@ -43,12 +44,21 @@ export default function ListaEquipos() {
     setForm(f => ({ ...f, [name]: value }))
   }
 
+  function hoyISO() {
+    return nowLocalDateInputMax()
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setFormLoading(true)
     setFormError(null)
     if (!form.nombre || !form.id_proveedor || !form.id_area || !form.estado || !form.fecha_compra) {
       setFormError('Completa todos los campos')
+      setFormLoading(false)
+      return
+    }
+    if (form.fecha_compra > hoyISO()) {
+      setFormError('La fecha de compra no puede ser futura')
       setFormLoading(false)
       return
     }
@@ -112,7 +122,7 @@ export default function ListaEquipos() {
               {areas.map(a => <option key={a.id_area} value={a.id_area}>{a.nombre_area}</option>)}
             </select>
             <input className="border p-2 rounded" name="estado" value={form.estado} onChange={handleFormChange} placeholder="Estado" required />
-            <input className="border p-2 rounded" name="fecha_compra" type="date" value={form.fecha_compra} onChange={handleFormChange} required />
+            <input className="border p-2 rounded" name="fecha_compra" type="date" value={form.fecha_compra} onChange={handleFormChange} required max={hoyISO()} />
           </div>
           {formError && <div className="text-red-600 mt-2">{formError}</div>}
           <div className="mt-4 flex justify-end">
