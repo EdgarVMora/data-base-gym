@@ -18,7 +18,6 @@ const COUNT_SPECS = [
   { key: 'incidencias', label: 'Incidencias', table: 'incidencias', nav: 'incidencias' },
   { key: 'nomina', label: 'Registros de nómina', table: 'nomina', nav: 'nomina' },
   { key: 'registro_acceso', label: 'Accesos registrados', table: 'registro_acceso', nav: 'accesos' },
-  { key: 'medios_contacto', label: 'Medios de contacto', table: 'medios_contacto', nav: 'catalogos' },
 ]
 
 function StatCard({ label, count, nav, onNavigate, loading }) {

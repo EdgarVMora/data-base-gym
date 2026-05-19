@@ -1,11 +1,55 @@
-
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { formatDateTime } from '../utils/format'
-import { collectFormErrors, isProperCaseWords, nowLocalDateTimeInputMax } from '../utils/validation'
+import {
+  collectFormErrors,
+  isoToLocalDateTimeInput,
+  isFutureDateTimeLocal,
+  isValidDateTimeLocal,
+  localDateTimeToISO,
+  nowLocalDateTimeInputMax,
+} from '../utils/validation'
 import SectionIntro from './ui/SectionIntro'
-import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
+import { ErrorNotice, FormFieldErrors, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
+
+const FORM_INICIAL = {
+  id_tipo_incidencia: '',
+  id_equipo: '',
+  id_area: '',
+  id_persona_afectada: '',
+  descripcion: '',
+  fecha: '',
+}
+
+function nombrePersona(p) {
+  if (!p) return ''
+  return `${p.nombre} ${p.apellido_paterno} ${p.apellido_materno ?? ''}`.trim()
+}
+
+function CatalogInput({ label, value, onChange, listId, options, placeholder, required = false }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1">{label}</label>
+      <input
+        type="text"
+        list={listId}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full rounded border px-3 py-2"
+        required={required}
+        autoComplete="off"
+      />
+      <datalist id={listId}>
+        {options.map(opt => (
+          <option key={opt.value} value={opt.label} />
+        ))}
+      </datalist>
+      <p className="text-xs text-slate-500 mt-1">Escribe para buscar o elige una sugerencia de la lista.</p>
+    </div>
+  )
+}
 
 export default function ListaIncidencias() {
   const [rows, setRows] = useState([])
@@ -13,28 +57,17 @@ export default function ListaIncidencias() {
   const [error, setError] = useState(null)
   const [formError, setFormError] = useState(null)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({
-    id_tipo_incidencia: '',
-    id_equipo: '',
-    id_area: '',
-    id_persona_afectada: '',
-    nombre_afectado: '',
-    apellido_paterno_afectado: '',
-    apellido_materno_afectado: '',
-    descripcion: '',
-    fecha: ''
-  })
-  const [nameCaseError, setNameCaseError] = useState({
-    nombre_afectado: false,
-    apellido_paterno_afectado: false,
-    apellido_materno_afectado: false,
-  });
-  const [nameCaseErrorMsg, setNameCaseErrorMsg] = useState("");
+  const [form, setForm] = useState(FORM_INICIAL)
   const [editId, setEditId] = useState(null)
   const [tipos, setTipos] = useState([])
   const [equipos, setEquipos] = useState([])
   const [areas, setAreas] = useState([])
   const [personas, setPersonas] = useState([])
+
+  const [tipoTexto, setTipoTexto] = useState('')
+  const [equipoTexto, setEquipoTexto] = useState('')
+  const [areaTexto, setAreaTexto] = useState('')
+  const [personaTexto, setPersonaTexto] = useState('')
 
   async function fetchAll() {
     setLoading(true)
@@ -44,7 +77,7 @@ export default function ListaIncidencias() {
       supabase.from('tipo_incidencia').select('id_tipo_incidencia, descripcion'),
       supabase.from('equipos').select('id_equipo, nombre'),
       supabase.from('areas').select('id_area, nombre_area'),
-      supabase.from('personas').select('id_persona, nombre, apellido_paterno')
+      supabase.from('personas').select('id_persona, nombre, apellido_paterno, apellido_materno'),
     ])
     if (err) setError('Error al cargar incidencias')
     setRows(incs ?? [])
@@ -59,215 +92,214 @@ export default function ListaIncidencias() {
     fetchAll()
   }, [])
 
-  // Valida que el texto tenga solo la primera letra en mayúscula y el resto en minúscula
-  const isProperCase = (str) => {
-    if (!str) return true;
-    return str.split(" ").every(
-      (word) =>
-        word.length > 0 &&
-        word[0] === word[0].toUpperCase() &&
-        word.slice(1) === word.slice(1).toLowerCase()
-    );
-  };
+  function resolverCatalogo(texto, opciones, campoId) {
+    const t = texto.trim().toLowerCase()
+    if (!t) return ''
+    const match = opciones.find(o => o.label.toLowerCase() === t)
+    return match ? String(match[campoId]) : ''
+  }
 
-  function handleInput(e) {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
-    if (["nombre_afectado", "apellido_paterno_afectado", "apellido_materno_afectado"].includes(name)) {
-      const valid = isProperCase(value);
-      setNameCaseError(prev => ({ ...prev, [name]: !valid }));
+  function syncCatalogosDesdeTexto() {
+    return {
+      id_tipo_incidencia: resolverCatalogo(tipoTexto, tipos.map(t => ({ label: t.descripcion, id_tipo_incidencia: t.id_tipo_incidencia })), 'id_tipo_incidencia'),
+      id_equipo: resolverCatalogo(equipoTexto, equipos.map(e => ({ label: e.nombre, id_equipo: e.id_equipo })), 'id_equipo'),
+      id_area: resolverCatalogo(areaTexto, areas.map(a => ({ label: a.nombre_area, id_area: a.id_area })), 'id_area'),
+      id_persona_afectada: resolverCatalogo(
+        personaTexto,
+        personas.map(p => ({ label: nombrePersona(p), id_persona: p.id_persona })),
+        'id_persona'
+      ),
     }
   }
 
-  function handleAdd() {
-    setForm({ id_tipo_incidencia: '', id_equipo: '', id_area: '', id_persona_afectada: '', descripcion: '', fecha: '' })
+  function resetFormulario() {
+    setForm(FORM_INICIAL)
+    setTipoTexto('')
+    setEquipoTexto('')
+    setAreaTexto('')
+    setPersonaTexto('')
     setEditId(null)
+    setFormError(null)
+  }
+
+  function handleAdd() {
+    resetFormulario()
+    setForm(f => ({ ...f, fecha: nowLocalDateTimeInputMax() }))
     setShowForm(true)
   }
 
   function handleEdit(row) {
+    const tipo = tipos.find(t => t.id_tipo_incidencia === row.id_tipo_incidencia)
+    const equipo = equipos.find(e => e.id_equipo === row.id_equipo)
+    const area = areas.find(a => a.id_area === row.id_area)
+    const persona = personas.find(p => p.id_persona === row.id_persona_afectada)
+
     setForm({
-      id_tipo_incidencia: row.id_tipo_incidencia || '',
-      id_equipo: row.id_equipo || '',
-      id_area: row.id_area || '',
-      id_persona_afectada: row.id_persona_afectada || '',
-      descripcion: row.descripcion || '',
-      fecha: row.fecha ? row.fecha.slice(0, 16) : ''
+      id_tipo_incidencia: row.id_tipo_incidencia ?? '',
+      id_equipo: row.id_equipo ?? '',
+      id_area: row.id_area ?? '',
+      id_persona_afectada: row.id_persona_afectada ?? '',
+      descripcion: row.descripcion ?? '',
+      fecha: isoToLocalDateTimeInput(row.fecha),
     })
+    setTipoTexto(tipo?.descripcion ?? '')
+    setEquipoTexto(equipo?.nombre ?? '')
+    setAreaTexto(area?.nombre_area ?? '')
+    setPersonaTexto(persona ? nombrePersona(persona) : '')
     setEditId(row.id_incidencia)
+    setFormError(null)
     setShowForm(true)
   }
 
   async function handleDelete(id) {
     if (!window.confirm('¿Seguro que deseas borrar esta incidencia?')) return
-    const { error } = await supabase.from('incidencias').delete().eq('id_incidencia', id)
-    if (error) {
-      setError('Error al borrar incidencia')
-    } else {
-      fetchAll()
-    }
+    const { error: err } = await supabase.from('incidencias').delete().eq('id_incidencia', id)
+    if (err) setError('Error al borrar incidencia')
+    else fetchAll()
   }
 
   async function handleSubmit(e) {
-    e.preventDefault();
-    setFormError(null);
+    e.preventDefault()
+    setFormError(null)
 
-    // Validación de mayúsculas/minúsculas en nombre y apellidos de persona afectada
-    const nombreOk = isProperCaseWords(form.nombre_afectado);
-    const paternoOk = isProperCaseWords(form.apellido_paterno_afectado);
-    const maternoOk = isProperCaseWords(form.apellido_materno_afectado);
-    setNameCaseError({
-      nombre_afectado: !nombreOk,
-      apellido_paterno_afectado: !paternoOk,
-      apellido_materno_afectado: !maternoOk,
-    });
+    const ids = syncCatalogosDesdeTexto()
     const errors = collectFormErrors([
-      !form.id_tipo_incidencia ? 'Selecciona el tipo de incidencia.' : null,
-      !form.fecha ? 'Selecciona la fecha y hora.' : null,
-      form.fecha && form.fecha > nowLocalDateTimeInputMax() ? 'La fecha y hora no pueden ser futuras.' : null,
-      !form.descripcion ? 'Captura la descripción.' : null,
-      (!nombreOk || !paternoOk || !maternoOk)
-        ? 'Nombre y/o apellidos mal escritos: usa solo la primera letra en mayúscula y el resto en minúscula (por palabra).'
+      !tipoTexto.trim() ? 'Escribe el tipo de incidencia.' : null,
+      tipoTexto.trim() && !ids.id_tipo_incidencia ? `Tipo "${tipoTexto.trim()}" no existe. Elige uno de la lista de sugerencias.` : null,
+      equipoTexto.trim() && !ids.id_equipo ? `Equipo "${equipoTexto.trim()}" no existe. Déjalo vacío o elige de la lista.` : null,
+      areaTexto.trim() && !ids.id_area ? `Área "${areaTexto.trim()}" no existe. Déjala vacía o elige de la lista.` : null,
+      personaTexto.trim() && !ids.id_persona_afectada
+        ? `Persona "${personaTexto.trim()}" no está registrada. Déjalo vacío o elige de la lista.`
         : null,
+      !form.fecha ? 'Captura la fecha y hora.' : null,
+      form.fecha && !isValidDateTimeLocal(form.fecha) ? 'Fecha y hora con formato inválido (usa el selector o AAAA-MM-DDTHH:MM).' : null,
+      form.fecha && isFutureDateTimeLocal(form.fecha) ? 'La fecha y hora no pueden ser futuras.' : null,
+      !form.descripcion?.trim() ? 'Captura la descripción.' : null,
     ])
 
     if (errors.length) {
-      setNameCaseErrorMsg('Revisa los campos marcados y la lista de errores.')
       setFormError(errors)
       return
     }
 
-    setNameCaseErrorMsg("");
-    if (editId) {
-      const { error } = await supabase.from('incidencias').update(form).eq('id_incidencia', editId);
-      if (error) setFormError(['Error al actualizar incidencia']);
-    } else {
-      const { error } = await supabase.from('incidencias').insert([form]);
-      if (error) setFormError(['Error al agregar incidencia']);
+    const payload = {
+      id_tipo_incidencia: Number(ids.id_tipo_incidencia),
+      id_equipo: ids.id_equipo || null,
+      id_area: ids.id_area ? Number(ids.id_area) : null,
+      id_persona_afectada: ids.id_persona_afectada || null,
+      descripcion: form.descripcion.trim(),
+      fecha: localDateTimeToISO(form.fecha),
     }
-    setShowForm(false);
-    fetchAll();
+
+    let hadError = false
+    if (editId) {
+      const { error: err } = await supabase.from('incidencias').update(payload).eq('id_incidencia', editId)
+      if (err) {
+        setFormError([err.message])
+        hadError = true
+      }
+    } else {
+      const { error: err } = await supabase.from('incidencias').insert([payload])
+      if (err) {
+        setFormError([err.message])
+        hadError = true
+      }
+    }
+
+    if (!hadError) {
+      setShowForm(false)
+      resetFormulario()
+      fetchAll()
+    }
   }
 
   return (
     <section className="scroll-mt-8">
       <SectionIntro
         title="Incidencias"
-        subtitle="Reportes vinculados a tipo, equipo, área y persona afectada."
+        subtitle="Reportes de tipo, equipo, área y persona afectada. Escribe el nombre en cada campo (con sugerencias)."
         table="incidencias → tipo_incidencia, equipos, areas, personas"
       />
 
       <div className="mb-4 flex gap-2">
-        <button className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded" onClick={handleAdd}>
+        <button type="button" className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded" onClick={handleAdd}>
           Nueva incidencia
         </button>
       </div>
 
       {showForm && (
         <form className="mb-6 space-y-4 bg-slate-50 dark:bg-slate-800 p-4 rounded-xl shadow" onSubmit={handleSubmit}>
-          {nameCaseErrorMsg && (
-            <div className="text-red-600 font-semibold text-sm mb-2">
-              {nameCaseErrorMsg}
-            </div>
-          )}
+          <CatalogInput
+            label="Tipo de incidencia *"
+            listId="tipos-incidencia"
+            value={tipoTexto}
+            onChange={e => setTipoTexto(e.target.value)}
+            placeholder="Ej. Daño en equipo"
+            required
+            options={tipos.map(t => ({ value: t.id_tipo_incidencia, label: t.descripcion }))}
+          />
+          <CatalogInput
+            label="Equipo (opcional)"
+            listId="equipos-incidencia"
+            value={equipoTexto}
+            onChange={e => setEquipoTexto(e.target.value)}
+            placeholder="Ej. Caminadora 3"
+            options={equipos.map(e => ({ value: e.id_equipo, label: e.nombre }))}
+          />
+          <CatalogInput
+            label="Área (opcional)"
+            listId="areas-incidencia"
+            value={areaTexto}
+            onChange={e => setAreaTexto(e.target.value)}
+            placeholder="Ej. Cardio"
+            options={areas.map(a => ({ value: a.id_area, label: a.nombre_area }))}
+          />
+          <CatalogInput
+            label="Persona afectada (opcional)"
+            listId="personas-incidencia"
+            value={personaTexto}
+            onChange={e => setPersonaTexto(e.target.value)}
+            placeholder="Ej. Juan Pérez"
+            options={personas.map(p => ({ value: p.id_persona, label: nombrePersona(p) }))}
+          />
           <div>
-            <label className="block text-sm font-medium mb-1">Tipo incidencia</label>
-            <select name="id_tipo_incidencia" value={form.id_tipo_incidencia} onChange={handleInput} className="w-full rounded border px-3 py-2" required>
-              <option value="">Selecciona tipo</option>
-              {tipos.map(t => (
-                <option key={t.id_tipo_incidencia} value={t.id_tipo_incidencia}>{t.descripcion}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium mb-1">Fecha y hora *</label>
+            <input
+              type="datetime-local"
+              name="fecha"
+              value={form.fecha}
+              onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+              className="w-full rounded border px-3 py-2"
+              required
+              max={nowLocalDateTimeInputMax()}
+            />
+            <p className="text-xs text-slate-500 mt-1">Hora local de México. No se permiten fechas futuras.</p>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Equipo</label>
-            <select name="id_equipo" value={form.id_equipo} onChange={handleInput} className="w-full rounded border px-3 py-2">
-              <option value="">Sin equipo</option>
-              {equipos.map(e => (
-                <option key={e.id_equipo} value={e.id_equipo}>{e.nombre}</option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium mb-1">Descripción *</label>
+            <textarea
+              name="descripcion"
+              value={form.descripcion}
+              onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
+              className="w-full rounded border px-3 py-2"
+              required
+              rows={3}
+              placeholder="Qué ocurrió y en qué circunstancias"
+            />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Área</label>
-            <select name="id_area" value={form.id_area} onChange={handleInput} className="w-full rounded border px-3 py-2">
-              <option value="">Sin área</option>
-              {areas.map(a => (
-                <option key={a.id_area} value={a.id_area}>{a.nombre_area}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Persona afectada (si aplica)</label>
-            <select name="id_persona_afectada" value={form.id_persona_afectada} onChange={handleInput} className="w-full rounded border px-3 py-2">
-              <option value="">Sin persona</option>
-              {personas.map(p => (
-                <option key={p.id_persona} value={p.id_persona}>{p.nombre} {p.apellido_paterno}</option>
-              ))}
-            </select>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-              <input
-                className={`border p-2 rounded ${nameCaseError.nombre_afectado ? "border-red-500" : ""}`}
-                placeholder="Nombre(s) de la persona"
-                name="nombre_afectado"
-                value={form.nombre_afectado}
-                onChange={handleInput}
-              />
-              {nameCaseError.nombre_afectado && (
-                <span className="text-xs text-red-500">Nombre mal escrito</span>
-              )}
-              <input
-                className={`border p-2 rounded ${nameCaseError.apellido_paterno_afectado ? "border-red-500" : ""}`}
-                placeholder="Apellido paterno"
-                name="apellido_paterno_afectado"
-                value={form.apellido_paterno_afectado}
-                onChange={handleInput}
-              />
-              {nameCaseError.apellido_paterno_afectado && (
-                <span className="text-xs text-red-500">Apellido paterno mal escrito</span>
-              )}
-              <input
-                className={`border p-2 rounded ${nameCaseError.apellido_materno_afectado ? "border-red-500" : ""}`}
-                placeholder="Apellido materno"
-                name="apellido_materno_afectado"
-                value={form.apellido_materno_afectado}
-                onChange={handleInput}
-              />
-              {nameCaseError.apellido_materno_afectado && (
-                <span className="text-xs text-red-500">Apellido materno mal escrito</span>
-              )}
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Fecha y hora</label>
-            <input type="datetime-local" name="fecha" value={form.fecha} onChange={handleInput} className="w-full rounded border px-3 py-2" required max={nowLocalDateTimeInputMax()} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Descripción</label>
-            <textarea name="descripcion" value={form.descripcion} onChange={handleInput} className="w-full rounded border px-3 py-2" required />
-          </div>
+          <FormFieldErrors error={formError} />
           <div className="flex gap-2">
             <button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-4 py-2 rounded">
               {editId ? 'Actualizar' : 'Agregar'}
             </button>
-            <button type="button" className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2 rounded" onClick={() => setShowForm(false)}>
+            <button
+              type="button"
+              className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold px-4 py-2 rounded"
+              onClick={() => { setShowForm(false); resetFormulario() }}
+            >
               Cancelar
             </button>
           </div>
-          {formError ? (
-            Array.isArray(formError) ? (
-              <div className="text-red-600 mt-2 text-sm">
-                <div className="font-semibold mb-1">Corrige lo siguiente:</div>
-                <ul className="list-disc pl-5 space-y-1">
-                  {formError.map((msg, idx) => (
-                    <li key={idx}>{msg}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="text-red-600 mt-2 text-sm">{formError}</div>
-            )
-          ) : null}
         </form>
       )}
 
@@ -305,24 +337,16 @@ export default function ListaIncidencias() {
                       <td className="px-4 py-3.5 tabular-nums text-slate-600 dark:text-slate-300 whitespace-nowrap">
                         {formatDateTime(row.fecha)}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-700 dark:text-slate-200">
-                        {tipo?.descripcion ?? '—'}
-                      </td>
+                      <td className="px-4 py-3.5 text-slate-700 dark:text-slate-200">{tipo?.descripcion ?? '—'}</td>
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{equipo?.nombre ?? '—'}</td>
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{area?.nombre_area ?? '—'}</td>
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        {equipo?.nombre ?? '—'}
+                        {persona ? nombrePersona(persona) : '—'}
                       </td>
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        {area?.nombre_area ?? '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">
-                        {persona ? `${persona.nombre} ${persona.apellido_paterno}` : '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-xs">
-                        {row.descripcion ?? '—'}
-                      </td>
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 max-w-xs">{row.descripcion ?? '—'}</td>
                       <td className="px-4 py-3.5 text-right">
-                        <button className="text-amber-700 hover:underline mr-2" onClick={() => handleEdit(row)}>Editar</button>
-                        <button className="text-red-600 hover:underline" onClick={() => handleDelete(row.id_incidencia)}>Borrar</button>
+                        <button type="button" className="text-amber-700 hover:underline mr-2" onClick={() => handleEdit(row)}>Editar</button>
+                        <button type="button" className="text-red-600 hover:underline" onClick={() => handleDelete(row.id_incidencia)}>Borrar</button>
                       </td>
                     </tr>
                   )

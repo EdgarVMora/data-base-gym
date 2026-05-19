@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { formatDateTime, formatMoney } from '../utils/format'
-import { collectFormErrors, nowLocalDateTimeInputMax } from '../utils/validation'
+import {
+  collectFormErrors,
+  isoToLocalDateTimeInput,
+  isFutureDateTimeLocal,
+  isValidDateTimeLocal,
+  localDateTimeToISO,
+  nowLocalDateTimeInputMax,
+} from '../utils/validation'
 import SectionIntro from './ui/SectionIntro'
 import { ErrorNotice, LoadingMessage, TableWrap } from './ui/QueryState'
 import { rowHoverClass, tableHeadCellClass } from './ui/tableStyles'
@@ -122,24 +129,6 @@ export default function ListaPagos() {
     }))
   }
 
-  // Convierte string 'YYYY-MM-DDTHH:mm' local a ISO UTC
-  function localToUTC(dateTimeLocal) {
-    if (!dateTimeLocal) return ''
-    const [date, time] = dateTimeLocal.split('T')
-    const [year, month, day] = date.split('-')
-    const [hour, minute] = time.split(':')
-    const dt = new Date(Date.UTC(year, month - 1, day, hour, minute))
-    return dt.toISOString()
-  }
-
-  // Convierte ISO UTC a string 'YYYY-MM-DDTHH:mm' local para el input
-  function utcToLocalInput(isoString) {
-    if (!isoString) return ''
-    const d = new Date(isoString)
-    const pad = n => n.toString().padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  }
-
   async function handleSubmit(e) {
     e.preventDefault();
     setFormLoading(true);
@@ -150,7 +139,10 @@ export default function ListaPagos() {
       !form.fecha_pago ? 'Selecciona fecha y hora del pago.' : null,
       !form.metodo_pago ? 'Captura el método de pago.' : null,
       form.detalles.length === 0 ? 'Agrega al menos un concepto en el detalle.' : null,
-      form.fecha_pago && form.fecha_pago > nowLocalDateTimeInputMax()
+      form.fecha_pago && !isValidDateTimeLocal(form.fecha_pago)
+        ? 'Fecha y hora de pago con formato inválido.'
+        : null,
+      form.fecha_pago && isFutureDateTimeLocal(form.fecha_pago)
         ? 'La fecha y hora de pago no pueden ser futuras.'
         : null,
     ])
@@ -159,7 +151,7 @@ export default function ListaPagos() {
       setFormLoading(false)
       return
     }
-    const fechaPagoUTC = localToUTC(form.fecha_pago);
+    const fechaPagoUTC = localDateTimeToISO(form.fecha_pago);
     if (editId) {
       // Editar pago
       const { error: errPago } = await supabase
@@ -241,7 +233,7 @@ export default function ListaPagos() {
     setShowForm(true)
     setForm({
       id_cliente: row.clientes?.id_cliente || '',
-      fecha_pago: utcToLocalInput(row.fecha_pago) || '',
+      fecha_pago: isoToLocalDateTimeInput(row.fecha_pago) || '',
       metodo_pago: row.metodo_pago || '',
       detalles: (row.detalle_pago || []).map(d => ({
         id_membresia: d.membresias?.id_membresia || '',

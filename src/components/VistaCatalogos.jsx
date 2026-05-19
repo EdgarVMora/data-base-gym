@@ -142,46 +142,6 @@ function TabTipoIncidencia() {
   )
 }
 
-function TabMediosContacto() {
-  const { rows, loading, error } = useCatalog('medios_contacto', 'id_medio_contacto')
-  if (loading) return <LoadingMessage>Cargando medios de contacto…</LoadingMessage>
-  if (error) return <ErrorNotice message={error} />
-  return (
-    <TableWrap>
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-slate-50/95 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
-            <th className={tableHeadCellClass()}>ID</th>
-            <th className={tableHeadCellClass()}>id_persona</th>
-            <th className={tableHeadCellClass()}>id_proveedor</th>
-            <th className={tableHeadCellClass()}>Teléfono</th>
-            <th className={tableHeadCellClass()}>Correo</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(row => (
-            <tr key={row.id_medio_contacto} className={rowHoverClass()}>
-              <td className="px-4 py-3.5 text-xs font-mono text-slate-500 truncate max-w-[120px]">
-                {row.id_medio_contacto}
-              </td>
-              <td className="px-4 py-3.5 text-xs font-mono text-slate-500 truncate max-w-[120px]">
-                {row.id_persona ?? '—'}
-              </td>
-              <td className="px-4 py-3.5 text-xs font-mono text-slate-500 truncate max-w-[120px]">
-                {row.id_proveedor ?? '—'}
-              </td>
-              <td className="px-4 py-3.5 tabular-nums text-slate-600 dark:text-slate-300">
-                {row.telefono ?? '—'}
-              </td>
-              <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300">{row.correo_electronico ?? '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableWrap>
-  )
-}
-
 export default function VistaCatalogos() {
   const [tab, setTab] = useState('genero')
 
@@ -190,15 +150,14 @@ export default function VistaCatalogos() {
     { id: 'tipo_contrato', label: 'Tipo contrato' },
     { id: 'puesto', label: 'Puesto' },
     { id: 'tipo_incidencia', label: 'Tipo incidencia' },
-    { id: 'medios_contacto', label: 'Medios contacto' },
   ]
 
   return (
     <section className="scroll-mt-8">
       <SectionIntro
         title="Catálogos y referencias"
-        subtitle="Tablas de apoyo referenciadas por id en el modelo (sin duplicar valores en texto libre)."
-        table="genero, tipo_contrato, puesto, tipo_incidencia, medios_contacto"
+        subtitle="Consulta técnica de tablas de apoyo (género, contratos, puestos, tipos de incidencia). Uso administrativo."
+        table="genero, tipo_contrato, puesto, tipo_incidencia"
       />
 
       <div className="flex flex-wrap gap-2 mb-6" role="tablist" aria-label="Catálogos">
@@ -220,7 +179,6 @@ export default function VistaCatalogos() {
       {tab === 'tipo_contrato' ? <TabTipoContrato /> : null}
       {tab === 'puesto' ? <TabPuesto /> : null}
       {tab === 'tipo_incidencia' ? <TabTipoIncidencia /> : null}
-      {tab === 'medios_contacto' ? <TabMediosContacto /> : null}
     </section>
   )
 }

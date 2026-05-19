@@ -37,7 +37,6 @@ export const NAV_GROUPS = [
     items: [
       { id: 'incidencias', label: 'Incidencias' },
       { id: 'nomina', label: 'Nómina' },
-      { id: 'catalogos', label: 'Catálogos y referencias' },
     ],
   },
 ]
